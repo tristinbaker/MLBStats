@@ -1,6 +1,7 @@
 import pygame
 import io
 from settings import *
+from button import Button
 try:
     # Python2
     from urllib2 import urlopen
@@ -10,7 +11,7 @@ except ImportError:
 
 class ApplicationManager:
 
-	def __init__(self):
+	def __init__(self, team):
 		pygame.init()
 		pygame.display.set_mode([800, 480])
 		pygame.display.set_caption("Braves Tracker")
@@ -18,9 +19,9 @@ class ApplicationManager:
 		self.score_font = pygame.font.SysFont('font.ttf', 72)
 		self.stat_font = pygame.font.SysFont('font.ttf', 24)
 		self.background = WHITE
+		self.team = team
 
-	def draw_braves_game(self, game):
-		print(game['name'])
+	def draw_game(self, game):
 		home_score = game['competitions'][0]['competitors'][0]['score']
 		home_team = game['competitions'][0]['competitors'][0]['team']['abbreviation']
 		home_record = game['competitions'][0]['competitors'][0]['records'][0]['summary']
@@ -35,9 +36,10 @@ class ApplicationManager:
 			batter = game['competitions'][0]['situation']['batter']['athlete']['fullName']
 			batter_headshot = game['competitions'][0]['situation']['batter']['athlete']['headshot']
 			batter_stats = game['competitions'][0]['situation']['batter']['summary']
-			base_status = self.get_base_status(game['competitions'][0]['situation'])
+			outs = game['competitions'][0]['situation']['outs']
+			balls = str(game['competitions'][0]['situation']['balls'])
+			strikes = str(game['competitions'][0]['situation']['strikes'])
 		except KeyError:
-			print(inning)
 			self.SURFACE.fill(self.background)
 			dash = pygame.draw.line(self.SURFACE, BLACK, (380, 85), (400, 85))
 			home_team_img = pygame.image.load(f"teams/{home_team}.png")
@@ -57,12 +59,26 @@ class ApplicationManager:
 			self.SURFACE.blit(away_record_text, (525, 140))
 
 			inning_text = self.score_font.render(inning, True, BLACK)
-			self.SURFACE.blit(inning_text, (290, 250))
+			inning_location = (330, 250) if inning == 'Final' else (290, 250)
+			self.SURFACE.blit(inning_text, inning_location)
 			return False
 
 		self.SURFACE.fill(self.background)
-		dash = pygame.draw.line(self.SURFACE, BLACK, (380, 85), (400, 85))
-		print(batter)
+		inning_dash = pygame.draw.line(self.SURFACE, BLACK, (380, 85), (400, 85))
+		self.draw_base_status(game['competitions'][0]['situation'])
+
+		inning_text = self.stat_font.render(inning, True, BLACK)
+		inning_location = (350, 150) if inning.split(' ')[0] == 'Bottom' else (360, 150)
+		if inning.split(' ')[0] == 'Rain':
+			inning_location = (310, 150)
+		self.SURFACE.blit(inning_text, inning_location)
+
+		balls_text = self.stat_font.render(balls, True, BLACK)
+		strikes_text = self.stat_font.render(strikes, True, BLACK)
+		self.SURFACE.blit(balls_text, (369, 175))
+		self.SURFACE.blit(strikes_text, (398, 175))
+		self.ball_strikes_dash = pygame.draw.line(self.SURFACE, BLACK, (382, 180), (392, 180))
+		self.draw_outs(outs)
 
 		home_team_img = pygame.image.load(f"teams/{home_team}.png")
 		home_team_img = pygame.transform.scale(home_team_img, eval(f"{home_team}_SIZE"))
@@ -106,25 +122,52 @@ class ApplicationManager:
 		self.SURFACE.blit(batter_stat_text, batter_stat_location)
 		self.SURFACE.blit(batter_name, batter_name_location)
 
-		base_status_text = self.stat_font.render(base_status, True, BLACK)
-		self.SURFACE.blit(base_status_text, (330, 450))
-
-	def get_base_status(self, situations):
-		status = "Bases Empty"
+	def draw_base_status(self, situations):
+		thirdRect = [(365, 250), (375, 240), (385, 250), (375, 260)]
+		secondRect = [(380, 230), (390, 220), (400, 230), (390, 240)]
+		firstRect = [(395,250), (405, 240), (415, 250), (405, 260)]
 		if(situations['onFirst']):
 			if(situations['onSecond']):
 				if(situations['onThird']):
-					status = "Bases Loaded"
+					pygame.draw.polygon(self.SURFACE, YELLOW, thirdRect)
+					pygame.draw.polygon(self.SURFACE, YELLOW, secondRect)
+					pygame.draw.polygon(self.SURFACE, YELLOW, firstRect)
 				else:
-					status = "Runners on first and second."
+					pygame.draw.polygon(self.SURFACE, BLACK, thirdRect, 1)
+					pygame.draw.polygon(self.SURFACE, YELLOW, secondRect)
+					pygame.draw.polygon(self.SURFACE, YELLOW, firstRect)
 			else:
-				status = "Runner on first."
+				pygame.draw.polygon(self.SURFACE, BLACK, thirdRect, 1)
+				pygame.draw.polygon(self.SURFACE, BLACK, secondRect, 1)
+				pygame.draw.polygon(self.SURFACE, YELLOW, firstRect)
 		elif(situations['onSecond']):
 			if(situations['onThird']):
-				status = "Runners on second and third."
+				pygame.draw.polygon(self.SURFACE, YELLOW, thirdRect)
+				pygame.draw.polygon(self.SURFACE, YELLOW, secondRect)
+				pygame.draw.polygon(self.SURFACE, BLACK, firstRect, 1)
 			else:
-				status = "Runner on second."
+				pygame.draw.polygon(self.SURFACE, BLACK, thirdRect, 1)
+				pygame.draw.polygon(self.SURFACE, YELLOW, secondRect)
+				pygame.draw.polygon(self.SURFACE, BLACK, firstRect, 1)
 		elif(situations['onThird']):
-			status = "Runner on third."
-		return status
+			pygame.draw.polygon(self.SURFACE, YELLOW, thirdRect)
+			pygame.draw.polygon(self.SURFACE, BLACK, secondRect, 1)
+			pygame.draw.polygon(self.SURFACE, BLACK, firstRect, 1)
+		else:
+			pygame.draw.polygon(self.SURFACE, BLACK, thirdRect, 1)
+			pygame.draw.polygon(self.SURFACE, BLACK, secondRect, 1)
+			pygame.draw.polygon(self.SURFACE, BLACK, firstRect, 1)
 
+	def draw_outs(self, outs):
+		if(outs == 0):
+			pygame.draw.circle(self.SURFACE, BLACK, (373, 200), 5, 2)
+			pygame.draw.circle(self.SURFACE, BLACK, (403, 200), 5, 2)
+		elif(outs == 1):
+			pygame.draw.circle(self.SURFACE, BLACK, (373, 200), 5)
+			pygame.draw.circle(self.SURFACE, BLACK, (403, 200), 5, 2)
+		elif(outs == 2):
+			pygame.draw.circle(self.SURFACE, BLACK, (373, 200), 5)
+			pygame.draw.circle(self.SURFACE, BLACK, (403, 200), 5)
+
+	def change_team(self, team):
+		self.team = team
